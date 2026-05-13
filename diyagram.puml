@@ -1,0 +1,188 @@
+@startuml
+skinparam classAttributeIconSize 0
+skinparam monochrome true
+skinparam shadowing false
+skinparam linetype ortho
+
+' ==========================================
+' ENUMLAR
+' ==========================================
+enum Sahip {
+    TANK
+    ADAM
+}
+
+enum SilahTipi {
+    TOP
+    TABANCA
+    KELES
+    NISANCI
+    ROKET
+}
+
+enum GucTipi {
+    CAN
+    TABANCA
+    KELES
+    NISANCI
+    ROKET
+}
+
+' ==========================================
+' TEMEL SOYUT SINIF (Oyun Motoru Çatısı)
+' ==========================================
+abstract class OyunNesnesi {
+    + {abstract} guncelle() : void
+    + {abstract} ciz(pencere: RenderWindow) : void
+    + getSinirlar() : FloatRect
+    + silinecekMi() : bool
+    + isMermi() : bool
+    + getSahip() : Sahip
+}
+
+' ==========================================
+' STRATEJİ KALIBI: SİLAH MİMARİSİ
+' ==========================================
+abstract class Silah {
+    # atisSaati : Clock
+    # beklemeSuresi : float
+    + Silah(bekleme: float)
+    + {abstract} atesEt(x: float, y: float, aci: float, sahip: Sahip) : OyunNesnesi*
+    + atesEdebilirMi() : bool
+}
+
+class KelesSinifi {
+    + KelesSinifi()
+    + atesEt() : OyunNesnesi*
+}
+
+class RoketAtarSinifi {
+    + RoketAtarSinifi()
+    + atesEt() : OyunNesnesi*
+}
+
+class TabancaSinifi {
+    + TabancaSinifi()
+    + atesEt() : OyunNesnesi*
+}
+
+class NisanciSinifi {
+    + NisanciSinifi()
+    + atesEt() : OyunNesnesi*
+}
+
+class TankTopuSinifi {
+    + TankTopuSinifi()
+    + atesEt() : OyunNesnesi*
+}
+
+' ==========================================
+' KARAKTERLER (Ana Oyuncular)
+' ==========================================
+class Tank {
+    - can : int
+    - hasarSuresi : int
+    - namluAcisi : float
+    - anaTop : Silah*
+    + Tank(x: float)
+    + guncelle() : void
+    + hareketEttir(dx: float) : void
+    + atesEt() : OyunNesnesi*
+    + ciz(pencere: RenderWindow) : void
+    + hasarAl() : void
+    + canEkle() : void
+}
+
+class HedefAdam {
+    - can : int
+    - hasarSuresi : int
+    - silahAcisi : float
+    - mevcutSilah : SilahTipi
+    - aktifSilah : Silah*
+    + HedefAdam(x: float)
+    + guncelle() : void
+    + hareketEttir(dx: float, dy: float) : void
+    + atesEt() : OyunNesnesi*
+    + silahDegistir(yeniTip: SilahTipi) : void
+    + ciz(pencere: RenderWindow) : void
+    + hasarAl() : void
+    + canEkle() : void
+}
+
+' ==========================================
+' DİĞER NESNELER (Sahne Elemanları)
+' ==========================================
+class Mermi {
+    - hizX : float
+    - hizY : float
+    - yercekimi : float
+    - lazerMi : bool
+    - gercekMi : bool
+    - kimeAit : Sahip
+    + Mermi(...)
+    + guncelle() : void
+    + ciz(pencere: RenderWindow) : void
+}
+
+class Roket {
+    - hizX : float
+    - hizY : float
+    - kimeAit : Sahip
+    + Roket(...)
+    + guncelle() : void
+    + ciz(pencere: RenderWindow) : void
+}
+
+class Baloncuk {
+    - tip : GucTipi
+    - salinim : float
+    + Baloncuk(...)
+    + guncelle() : void
+    + ciz(pencere: RenderWindow) : void
+}
+
+class Partikul {
+    - omur : int
+    - hizX : float
+    - hizY : float
+    + Partikul(...)
+    + guncelle() : void
+    + ciz(pencere: RenderWindow) : void
+}
+
+' ==========================================
+' İLİŞKİLER VE BAĞLANTILAR
+' ==========================================
+
+' 1. KALITIM (Inheritance)
+OyunNesnesi <|-- HedefAdam
+OyunNesnesi <|-- Tank
+OyunNesnesi <|-- Mermi
+OyunNesnesi <|-- Roket
+OyunNesnesi <|-- Baloncuk
+OyunNesnesi <|-- Partikul
+
+Silah <|-- KelesSinifi
+Silah <|-- RoketAtarSinifi
+Silah <|-- TabancaSinifi
+Silah <|-- NisanciSinifi
+Silah <|-- TankTopuSinifi
+
+' 2. SAHİPLİK / KULLANIM (Strategy Pattern Bağlantıları)
+HedefAdam o--> "1" Silah : aktifSilah (Strateji)
+Tank *--> "1" Silah : anaTop (Strateji)
+
+' 3. ÜRETİM / BAĞIMLILIK (Dependency)
+KelesSinifi ..> Mermi : üretir
+TabancaSinifi ..> Mermi : üretir
+NisanciSinifi ..> Mermi : üretir
+TankTopuSinifi ..> Mermi : üretir
+RoketAtarSinifi ..> Roket : üretir
+
+' 4. DİĞER BAĞIMLILIKLAR
+Mermi ..> Sahip
+Roket ..> Sahip
+HedefAdam ..> SilahTipi
+Baloncuk ..> GucTipi
+
+@enduml
