@@ -1,0 +1,8 @@
+# CLion kişisel ayar klasörü
+.idea/
+
+# CMake tarafından oluşturulan geçici derleme klasörleri
+cmake-build-*/
+
+# macOS sistem kalıntı dosyaları
+.DS_Store
