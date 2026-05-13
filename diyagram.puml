@@ -5,7 +5,7 @@ skinparam shadowing false
 skinparam linetype ortho
 
 ' ==========================================
-' ENUMLAR
+' ENUMLAR VE SİSTEM YÖNETİCİLERİ
 ' ==========================================
 enum Sahip {
     TANK
@@ -28,6 +28,26 @@ enum GucTipi {
     ROKET
 }
 
+' YENİ: Durum Makinesi (State Machine)
+enum EkranDurumu {
+    MENU
+    OYUN
+    BITTI
+}
+
+' YENİ: Mac Klavye Güvenliği Çözümü
+class Klavye << (N,lightblue) namespace >> {
+    {static} +W : bool
+    {static} +S : bool
+    {static} +A : bool
+    {static} +D : bool
+    {static} +Yukari : bool
+    {static} +Sag : bool
+    {static} +Sol : bool
+    {static} +O : bool
+    {static} +L : bool
+}
+
 ' ==========================================
 ' TEMEL SOYUT SINIF (Oyun Motoru Çatısı)
 ' ==========================================
@@ -41,7 +61,7 @@ abstract class OyunNesnesi {
 }
 
 ' ==========================================
-' STRATEJİ KALIBI: SİLAH MİMARİSİ
+' STRATEJİ KALIBI: SİLAH MİMARİSİ (Aynı Kaldı)
 ' ==========================================
 abstract class Silah {
     # atisSaati : Clock
@@ -153,8 +173,6 @@ class Partikul {
 ' ==========================================
 ' İLİŞKİLER VE BAĞLANTILAR
 ' ==========================================
-
-' 1. KALITIM (Inheritance)
 OyunNesnesi <|-- HedefAdam
 OyunNesnesi <|-- Tank
 OyunNesnesi <|-- Mermi
@@ -168,21 +186,18 @@ Silah <|-- TabancaSinifi
 Silah <|-- NisanciSinifi
 Silah <|-- TankTopuSinifi
 
-' 2. SAHİPLİK / KULLANIM (Strategy Pattern Bağlantıları)
 HedefAdam o--> "1" Silah : aktifSilah (Strateji)
 Tank *--> "1" Silah : anaTop (Strateji)
 
-' 3. ÜRETİM / BAĞIMLILIK (Dependency)
 KelesSinifi ..> Mermi : üretir
 TabancaSinifi ..> Mermi : üretir
 NisanciSinifi ..> Mermi : üretir
 TankTopuSinifi ..> Mermi : üretir
 RoketAtarSinifi ..> Roket : üretir
 
-' 4. DİĞER BAĞIMLILIKLAR
+' Enum Bağımlılıkları
 Mermi ..> Sahip
 Roket ..> Sahip
 HedefAdam ..> SilahTipi
 Baloncuk ..> GucTipi
-
 @enduml
