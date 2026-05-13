@@ -38,6 +38,16 @@ const float ADAM_BOLGE_MIN_X = PENCERE_W * 0.58f;  // Zemin seviyesini yeni deri
 enum class Sahip { TANK, ADAM };
 enum class SilahTipi { TOP, TABANCA, KELES, NISANCI, ROKET };
 enum class GucTipi { CAN, TABANCA, KELES, NISANCI, ROKET };
+// OYUNUN EKRAN DURUMLARI (STATE MACHINE)
+enum class EkranDurumu { MENU, OYUN, BITTI };
+// =============================================================
+// KLAVYE TAKİP SİSTEMİ (Mac Güvenliğini Aşmak İçin)
+// =============================================================
+namespace Klavye {
+    inline bool W = false, S = false, A = false, D = false;
+    inline bool Yukari = false, Sag = false, Sol = false;
+    inline bool O = false, L = false;
+}
 
 // =============================================================
 // TEMEL SINIF
@@ -591,14 +601,14 @@ public:
     }
 
     void guncelle() override {
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::A)) hareketEttir(-5.f);
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::D)) hareketEttir(5.f);
+        if (Klavye::A) hareketEttir(-5.f);
+        if (Klavye::D) hareketEttir(5.f);
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::W)) {
+        if (Klavye::W) {
             namluAcisi -= 0.45f;
             if (namluAcisi < -78.f) namluAcisi = -78.f;
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::S)) {
+        if (Klavye::S) {
             namluAcisi += 0.45f;
             if (namluAcisi > 8.f) namluAcisi = 8.f;
         }
@@ -848,9 +858,9 @@ public:
 
     void guncelle() override {
         float hizX = 0.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Right)) hizX = 6.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Left)) hizX = -6.f;
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Up) && yerdeMi) {
+        if (Klavye::Sag) hizX = 6.f;
+        if (Klavye::Sol) hizX = -6.f;
+        if (Klavye::Yukari && yerdeMi) {
             hizY = -14.f;
             yerdeMi = false;
         }
@@ -861,14 +871,15 @@ public:
         else if (mevcutSilah == SilahTipi::NISANCI) nisanHizi = 1.3f;
         else if (mevcutSilah == SilahTipi::ROKET) nisanHizi = 1.5f;
 
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::O)) {
+        if (Klavye::O) {
             silahAcisi += nisanHizi;
             if (silahAcisi > 260.f) silahAcisi = 260.f;
         }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::L)) {
+        if (Klavye::L) {
             silahAcisi -= nisanHizi;
             if (silahAcisi < 100.f) silahAcisi = 100.f;
         }
+
         silahGorsel.setRotation(sf::degrees(silahAcisi));
         silahNamluUcu.setRotation(sf::degrees(silahAcisi));
         silahDip.setRotation(sf::degrees(silahAcisi));
@@ -1082,14 +1093,12 @@ static void patlamaPartikulu(std::vector<OyunNesnesi*>& hedef, float x, float y,
 // =============================================================
 // MAIN
 // =============================================================
+// =============================================================
+// MAIN (MENÜ, OYUN VE BİTİŞ EKRANI MİMARİSİ)
+// =============================================================
 int main() {
-    // ==========================================
-    // SES EFEKTLERİ YÜKLEME ALANI
-    // ==========================================
+    // SES EFEKTLERİ
     sf::SoundBuffer bTank, bTabanca, bKeles, bNisanci, bRoket;
-
-    // NOT: Bu isimlerdeki .wav dosyalarını bilgisayarında projenin olduğu
-    // "cmake-build-debug" klasörünün içine atmalısın!
     bTank.loadFromFile("tank.mp3");
     bTabanca.loadFromFile("tabanca.mp3");
     bKeles.loadFromFile("keles.mp3");
@@ -1097,103 +1106,234 @@ int main() {
     bRoket.loadFromFile("roket.mp3");
 
     sf::Sound sTank(bTank), sTabanca(bTabanca), sKeles(bKeles), sNisanci(bNisanci), sRoket(bRoket);
-
-    // Sesler çok gürültülü olmasın diye seviyelerini %60'a sabitledik
     sTank.setVolume(60.f); sTabanca.setVolume(60.f); sKeles.setVolume(60.f);
     sNisanci.setVolume(60.f); sRoket.setVolume(60.f);
 
-
     std::srand(static_cast<unsigned int>(std::time(nullptr)));
 
-    // Pencereyi Mac ekranına kesinlikle sığacak güvenli bir boyutta açıyoruz (1280x720)
-    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Muhtesem Tank vs Adam - Genis Arena");
+    sf::RenderWindow window(sf::VideoMode({1280, 720}), "Muhtesem Tank vs Adam - Pro UI");
     window.setFramerateLimit(60);
 
-    // AMA oyun dünyamız olan 2560x1440'lık devasa alanı bu pencereye sığdırmak için KAMERA kullanıyoruz
     sf::View kamera(sf::FloatRect({0.f, 0.f}, {PENCERE_W, PENCERE_H}));
     window.setView(kamera);
+
+    sf::Font oyunFont;
+    oyunFont.openFromFile("/System/Library/Fonts/Supplemental/Arial.ttf");
+
+    // =============================================================
+    // =============================================================
+    // ARAYÜZ (UI) TASARIMLARI (SFML 3 Uyumlu)
+    // =============================================================
+    // 1. ANA MENÜ TASARIMI
+    sf::Text baslikAnaMenu(oyunFont, "MUHTESEM TANK VS ADAM", 90);
+    baslikAnaMenu.setStyle(sf::Text::Bold);
+    baslikAnaMenu.setFillColor(sf::Color(255, 215, 0)); // Altın Sarısı
+    sf::FloatRect baslikRect = baslikAnaMenu.getLocalBounds();
+    baslikAnaMenu.setOrigin({baslikRect.position.x + baslikRect.size.x / 2.0f, baslikRect.position.y + baslikRect.size.y / 2.0f});
+    baslikAnaMenu.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f - 250.f});
+
+    // Oyna Butonu
+    sf::RectangleShape btnOyna({350.f, 80.f});
+    btnOyna.setOrigin({175.f, 40.f});
+    btnOyna.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f - 50.f});
+    sf::Text txtOyna(oyunFont, "OYUNA BASLA", 40);
+    sf::FloatRect oynaRect = txtOyna.getLocalBounds();
+    txtOyna.setOrigin({oynaRect.position.x + oynaRect.size.x / 2.0f, oynaRect.position.y + oynaRect.size.y / 2.0f});
+    txtOyna.setPosition(btnOyna.getPosition());
+
+    // Çıkış Butonu
+    sf::RectangleShape btnCikisMenu({350.f, 80.f});
+    btnCikisMenu.setOrigin({175.f, 40.f});
+    btnCikisMenu.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f + 70.f});
+    sf::Text txtCikisMenu(oyunFont, "OYUNDAN CIK", 40);
+    sf::FloatRect cikisMenuRect = txtCikisMenu.getLocalBounds();
+    txtCikisMenu.setOrigin({cikisMenuRect.position.x + cikisMenuRect.size.x / 2.0f, cikisMenuRect.position.y + cikisMenuRect.size.y / 2.0f});
+    txtCikisMenu.setPosition(btnCikisMenu.getPosition());
+
+    // 2. OYUN BİTİŞ EKRANI TASARIMI
+    sf::RectangleShape karartma({PENCERE_W, PENCERE_H});
+    karartma.setFillColor(sf::Color(0, 0, 0, 200));
+
+    sf::Text baslikBitti(oyunFont, "OYUN BITTI", 110);
+    baslikBitti.setStyle(sf::Text::Bold);
+    baslikBitti.setFillColor(sf::Color(220, 50, 50));
+    sf::FloatRect bittiRect = baslikBitti.getLocalBounds();
+    baslikBitti.setOrigin({bittiRect.position.x + bittiRect.size.x / 2.0f, bittiRect.position.y + bittiRect.size.y / 2.0f});
+    baslikBitti.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f - 250.f});
+
+    // Tekrar Oyna Butonu
+    sf::RectangleShape btnTekrar({400.f, 80.f});
+    btnTekrar.setOrigin({200.f, 40.f});
+    btnTekrar.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f - 20.f});
+    sf::Text txtTekrar(oyunFont, "YENIDEN BASLA", 40);
+    sf::FloatRect tekrarRect = txtTekrar.getLocalBounds();
+    txtTekrar.setOrigin({tekrarRect.position.x + tekrarRect.size.x / 2.0f, tekrarRect.position.y + tekrarRect.size.y / 2.0f});
+    txtTekrar.setPosition(btnTekrar.getPosition());
+
+    // Menüye Dön Butonu
+    sf::RectangleShape btnMenuyeDon({400.f, 80.f});
+    btnMenuyeDon.setOrigin({200.f, 40.f});
+    btnMenuyeDon.setPosition({PENCERE_W / 2.f, PENCERE_H / 2.f + 100.f});
+    sf::Text txtMenuyeDon(oyunFont, "ANA MENUYE DON", 40);
+    sf::FloatRect menuyeDonRect = txtMenuyeDon.getLocalBounds();
+    txtMenuyeDon.setOrigin({menuyeDonRect.position.x + menuyeDonRect.size.x / 2.0f, menuyeDonRect.position.y + menuyeDonRect.size.y / 2.0f});
+    txtMenuyeDon.setPosition(btnMenuyeDon.getPosition());
+    EkranDurumu mevcutEkran = EkranDurumu::MENU;
 
     sf::RectangleShape cimen({PENCERE_W, PENCERE_H - ZEMIN_Y});
     cimen.setFillColor(sf::Color(85, 170, 85));
     cimen.setPosition({0.f, ZEMIN_Y});
 
-    sf::RectangleShape karartma({PENCERE_W, PENCERE_H});
-    karartma.setFillColor(sf::Color(0, 0, 0, 170));
-    sf::Font oyunFont;
-    const bool fontYuklendi = oyunFont.openFromFile("/System/Library/Fonts/Supplemental/Arial.ttf");
-    sf::Text bittiYazi(oyunFont, "OYUN BITTI - TEKRAR ICIN ENTER'A BAS", 52);
-    bittiYazi.setFillColor(sf::Color::White);
-    bittiYazi.setPosition({PENCERE_W * 0.5f - 420.f, PENCERE_H * 0.5f - 40.f});
-
     std::vector<OyunNesnesi*> nesneler;
-    Tank* tank = new Tank(120.f);
-    HedefAdam* adam = new HedefAdam(PENCERE_W - 135.f);
-    nesneler.push_back(tank);
-    nesneler.push_back(adam);
-
-    bool oyunBitti = false;
-    bool oyunBittiYazildi = false;
+    Tank* tank = nullptr;
+    HedefAdam* adam = nullptr;
     sf::Clock baloncukSaati;
 
+    // Oyunu Sıfırlama ve Başlatma Fonksiyonu (Lambda Metodu)
+    // Oyunu Sıfırlama ve Başlatma Fonksiyonu (Lambda Metodu)
+    auto oyunuBaslat = [&]() {
+        for (OyunNesnesi* n : nesneler) delete n;
+        nesneler.clear();
+        tank = new Tank(120.f);
+        adam = new HedefAdam(PENCERE_W - 300.f);
+        nesneler.push_back(tank);
+        nesneler.push_back(adam);
+        baloncukSaati.restart();
+
+        // MAC İÇİN EKLENEN SİHİRLİ DOKUNUŞ:
+        window.requestFocus();
+
+        // TAKILI KALAN TUŞLARI SIFIRLAMA (Yapışkan Tuş Çözümü)
+        Klavye::W = false; Klavye::S = false; Klavye::A = false; Klavye::D = false;
+        Klavye::Yukari = false; Klavye::Sag = false; Klavye::Sol = false;
+        Klavye::O = false; Klavye::L = false;
+    };
+
+    // =============================================================
+    // ANA DÖNGÜ
+    // =============================================================
     while (window.isOpen()) {
+        sf::Vector2f farePozisyonu = window.mapPixelToCoords(sf::Mouse::getPosition(window));
         std::vector<OyunNesnesi*> eklenecekler;
 
         while (const std::optional<sf::Event> event = window.pollEvent()) {
             if (event->is<sf::Event::Closed>()) window.close();
-            if (oyunBitti) {
-                if (const auto* tus = event->getIf<sf::Event::KeyPressed>()) {
-                    if (tus->code == sf::Keyboard::Key::Enter) {
-                        for (OyunNesnesi* n : nesneler) delete n;
-                        nesneler.clear();
-                        tank = new Tank(120.f);
-                        adam = new HedefAdam(PENCERE_W - 300.f);
-                        nesneler.push_back(tank);
-                        nesneler.push_back(adam);
-                        oyunBitti = false;
-                        oyunBittiYazildi = false;
-                        baloncukSaati.restart();
+
+            // SADECE MENÜDEYKEN TIKLAMALARI KONTROL ET
+            if (mevcutEkran == EkranDurumu::MENU) {
+                if (const auto* tiklama = event->getIf<sf::Event::MouseButtonPressed>()) {
+                    if (tiklama->button == sf::Mouse::Button::Left) {
+                        if (btnOyna.getGlobalBounds().contains(farePozisyonu)) {
+                            oyunuBaslat();
+                            mevcutEkran = EkranDurumu::OYUN;
+                        }
+                        else if (btnCikisMenu.getGlobalBounds().contains(farePozisyonu)) {
+                            window.close();
+                        }
                     }
+                }
+            }
+            // SADECE OYUN BİTİŞ EKRANINDAYKEN TIKLAMALARI KONTROL ET
+            else if (mevcutEkran == EkranDurumu::BITTI) {
+                if (const auto* tiklama = event->getIf<sf::Event::MouseButtonPressed>()) {
+                    if (tiklama->button == sf::Mouse::Button::Left) {
+                        if (btnTekrar.getGlobalBounds().contains(farePozisyonu)) {
+                            oyunuBaslat();
+                            mevcutEkran = EkranDurumu::OYUN;
+                        }
+                        else if (btnMenuyeDon.getGlobalBounds().contains(farePozisyonu)) {
+                            mevcutEkran = EkranDurumu::MENU;
+                        }
+                    }
+                }
+            }
+            // MAC İÇİN KESİN ÇÖZÜM: Ateş etme tuşlarını doğrudan Event üzerinden yakalıyoruz!
+            // MAC İÇİN KESİN ÇÖZÜM: Tuş basılma ve bırakılma anlarını Event ile yakalıyoruz!
+            else if (mevcutEkran == EkranDurumu::OYUN) {
+                // TUŞA BASILDIĞI AN (TRUE YAP)
+                if (const auto* tusBas = event->getIf<sf::Event::KeyPressed>()) {
+                    if (tusBas->code == sf::Keyboard::Key::W) Klavye::W = true;
+                    else if (tusBas->code == sf::Keyboard::Key::S) Klavye::S = true;
+                    else if (tusBas->code == sf::Keyboard::Key::A) Klavye::A = true;
+                    else if (tusBas->code == sf::Keyboard::Key::D) Klavye::D = true;
+                    else if (tusBas->code == sf::Keyboard::Key::Up) Klavye::Yukari = true;
+                    else if (tusBas->code == sf::Keyboard::Key::Right) Klavye::Sag = true;
+                    else if (tusBas->code == sf::Keyboard::Key::Left) Klavye::Sol = true;
+                    else if (tusBas->code == sf::Keyboard::Key::O) Klavye::O = true;
+                    else if (tusBas->code == sf::Keyboard::Key::L) Klavye::L = true;
+
+                    // Ateş Etme (Tek Tetik)
+                    else if (tusBas->code == sf::Keyboard::Key::Space) {
+                        if (OyunNesnesi* m = tank->atesEt()) { sTank.play(); eklenecekler.push_back(m); }
+                    }
+                    else if (tusBas->code == sf::Keyboard::Key::Enter) {
+                        if (OyunNesnesi* m = adam->atesEt()) {
+                            SilahTipi tip = adam->getSilah();
+                            if (tip == SilahTipi::TABANCA) sTabanca.play();
+                            else if (tip == SilahTipi::KELES) sKeles.play();
+                            else if (tip == SilahTipi::NISANCI) sNisanci.play();
+                            else if (tip == SilahTipi::ROKET) sRoket.play();
+                            eklenecekler.push_back(m);
+                        }
+                    }
+                }
+                // TUŞTAN EL ÇEKİLDİĞİ AN (FALSE YAP)
+                else if (const auto* tusCek = event->getIf<sf::Event::KeyReleased>()) {
+                    if (tusCek->code == sf::Keyboard::Key::W) Klavye::W = false;
+                    else if (tusCek->code == sf::Keyboard::Key::S) Klavye::S = false;
+                    else if (tusCek->code == sf::Keyboard::Key::A) Klavye::A = false;
+                    else if (tusCek->code == sf::Keyboard::Key::D) Klavye::D = false;
+                    else if (tusCek->code == sf::Keyboard::Key::Up) Klavye::Yukari = false;
+                    else if (tusCek->code == sf::Keyboard::Key::Right) Klavye::Sag = false;
+                    else if (tusCek->code == sf::Keyboard::Key::Left) Klavye::Sol = false;
+                    else if (tusCek->code == sf::Keyboard::Key::O) Klavye::O = false;
+                    else if (tusCek->code == sf::Keyboard::Key::L) Klavye::L = false;
                 }
             }
         }
 
-        if (!oyunBitti) {
+        // =============================================================
+        // DURUMLARA GÖRE GÜNCELLEMELER (UPDATE)
+        // =============================================================
+        if (mevcutEkran == EkranDurumu::MENU) {
+            // Hover (Üzerine gelme) efektleri - MENÜ
+            btnOyna.setFillColor(btnOyna.getGlobalBounds().contains(farePozisyonu) ? sf::Color(50, 180, 80) : sf::Color(35, 120, 50));
+            btnCikisMenu.setFillColor(btnCikisMenu.getGlobalBounds().contains(farePozisyonu) ? sf::Color(200, 60, 60) : sf::Color(140, 40, 40));
+        }
+        else if (mevcutEkran == EkranDurumu::BITTI) {
+            // Hover efektleri - BİTİŞ EKRANI
+            btnTekrar.setFillColor(btnTekrar.getGlobalBounds().contains(farePozisyonu) ? sf::Color(50, 180, 80) : sf::Color(35, 120, 50));
+            btnMenuyeDon.setFillColor(btnMenuyeDon.getGlobalBounds().contains(farePozisyonu) ? sf::Color(80, 100, 180) : sf::Color(50, 60, 120));
+        }
+        else if (mevcutEkran == EkranDurumu::OYUN) {
+            // OYUN İÇİ MEKANİKLER (Ateş etme, baloncuklar vb.)
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Space)) {
                 if (OyunNesnesi* m = tank->atesEt()) {
-                    sTank.play(); // Tank ateş sesi
+                    sTank.play();
                     eklenecekler.push_back(m);
-                    // ... (varsa patlama partikülleri kodları)
                 }
-            } // Space tuşunun kapanış parantezi (Eksik olan buydu)
+            }
 
             if (sf::Keyboard::isKeyPressed(sf::Keyboard::Key::Enter)) {
                 if (OyunNesnesi* m = adam->atesEt()) {
-                    // ADAMIN ELİNDEKİ SİLAHA GÖRE ÖZEL SES ÇALIYOR
                     SilahTipi tip = adam->getSilah();
                     if (tip == SilahTipi::TABANCA) sTabanca.play();
                     else if (tip == SilahTipi::KELES) sKeles.play();
                     else if (tip == SilahTipi::NISANCI) sNisanci.play();
                     else if (tip == SilahTipi::ROKET) sRoket.play();
-
                     eklenecekler.push_back(m);
-                    // ... (varsa patlama partikülleri kodları)
                 }
-            } // Enter tuşunun kapanış parantezi (Eksik olan buydu)
+            }
 
+            // Baloncuk Üretimi
             if (baloncukSaati.getElapsedTime().asSeconds() > 9.f) {
                 const float rx = PENCERE_W * 0.25f + static_cast<float>(std::rand() % static_cast<int>(PENCERE_W * 0.5f));
-
-                // Tam Orta Karar: Ne bulutların içinde, ne de yerde.
-                // Zeminden 450 ila 800 piksel arası yukarıda, tankın ve adamın en rahat nişan alacağı bölge.
                 const float ry = ZEMIN_Y - 800.f + static_cast<float>(std::rand() % 350);
-
                 const GucTipi tip = static_cast<GucTipi>(std::rand() % 5);
                 eklenecekler.push_back(new Baloncuk(rx, ry, tip));
                 baloncukSaati.restart();
             }
-        }
 
-        if (!oyunBitti) {
             std::vector<OyunNesnesi*> zorlaSilinecek;
             for (auto it = nesneler.begin(); it != nesneler.end();) {
                 OyunNesnesi* nesne = *it;
@@ -1209,7 +1349,6 @@ int main() {
                         const Sahip mermiSahibi = diger->getSahip();
                         const GucTipi balonTipi = b->getTip();
 
-                        // Tank sadece CAN baloncugunu vurabilsin.
                         if (mermiSahibi == Sahip::TANK) {
                             if (balonTipi == GucTipi::CAN) {
                                 tank->canEkle();
@@ -1220,7 +1359,6 @@ int main() {
                             continue;
                         }
 
-                        // Adam mermisi tum baloncuk tiplerini toplayabilsin.
                         if (mermiSahibi == Sahip::ADAM) {
                             if (balonTipi == GucTipi::CAN) adam->canEkle();
                             else if (balonTipi == GucTipi::TABANCA) adam->silahDegistir(SilahTipi::TABANCA);
@@ -1257,7 +1395,7 @@ int main() {
                 }
 
                 if (sil || nesne->silinecekMi()) {
-                    delete nesne;
+                    if (nesne != tank && nesne != adam) delete nesne;
                     it = nesneler.erase(it);
                 } else {
                     ++it;
@@ -1266,78 +1404,70 @@ int main() {
 
             for (OyunNesnesi* yeni : eklenecekler) nesneler.push_back(yeni);
 
+            // ÖLÜM KONTROLÜ
             if (tank->getCan() <= 0 || adam->getCan() <= 0) {
-                oyunBitti = true;
-                if (!fontYuklendi && !oyunBittiYazildi) {
-                    std::cout << "OYUN BITTI - TEKRAR ICIN ENTER'A BAS" << std::endl;
-                    oyunBittiYazildi = true;
-                }
+                mevcutEkran = EkranDurumu::BITTI;
             }
         }
 
+        // =============================================================
+        // ÇİZİM (RENDER) AŞAMASI
+        // =============================================================
         window.clear(sf::Color(130, 200, 245));
-        window.draw(cimen);
-        for (OyunNesnesi* n : nesneler) n->ciz(window);
 
-        // HUD: iki tarafta ayni tasarim can kutulari
-        for (int i = 0; i < 5; ++i) {
-            sf::RectangleShape kutu({28.f, 20.f});
-            kutu.setPosition({20.f + i * 32.f, 20.f});
-            kutu.setOutlineThickness(2.f);
-            kutu.setOutlineColor(sf::Color::White);
-            if (i < tank->getCan()) kutu.setFillColor(sf::Color(50, 200, 80));
-            else kutu.setFillColor(sf::Color(25, 60, 30));
-            window.draw(kutu);
+        if (mevcutEkran == EkranDurumu::MENU) {
+            // Ana Menüyü Çiz
+            window.draw(baslikAnaMenu);
+            window.draw(btnOyna);
+            window.draw(txtOyna);
+            window.draw(btnCikisMenu);
+            window.draw(txtCikisMenu);
         }
+        else {
+            // Oyun İçi ve Bitiş Ekranı (Arka planda oyun donmuş şekilde görünür)
+            window.draw(cimen);
+            for (OyunNesnesi* n : nesneler) n->ciz(window);
 
-        for (int i = 0; i < 5; ++i) {
-            sf::RectangleShape kutu({28.f, 20.f}); // Boyut tank ile birebir aynı yapıldı
-            kutu.setPosition({PENCERE_W - 48.f - (i * 32.f), 20.f}); // Kenar boşlukları simetrik ayarlandı
-            kutu.setOutlineThickness(2.f);
-            kutu.setOutlineColor(sf::Color::White);
-
-            if (i < adam->getCan()) kutu.setFillColor(sf::Color(220, 40, 40)); // Parlak kırmızı
-            else kutu.setFillColor(sf::Color(70, 20, 20));                     // Sönük kırmızı
-
-            window.draw(kutu);
-        }
-
-        /*
-        for (int i = 0; i < tank->getCan(); ++i) {
-            sf::CircleShape hp(10.f);
-            hp.setFillColor(sf::Color(50, 200, 80));
-            hp.setPosition({22.f + i * 26.f, 22.f});
-            window.draw(hp);
-        }
-        sf::RectangleShape adamCanPanel({220.f, 46.f});
-        adamCanPanel.setFillColor(sf::Color(20, 20, 30, 210));
-        adamCanPanel.setOutlineThickness(3.f);
-        adamCanPanel.setOutlineColor(sf::Color(230, 230, 240));
-        adamCanPanel.setPosition({PENCERE_W - 240.f, 12.f});
-        window.draw(adamCanPanel);
-
-        for (int i = 0; i < 5; ++i) {
-            sf::RectangleShape hakKutusu({36.f, 24.f});
-            hakKutusu.setPosition({PENCERE_W - 228.f + i * 42.f, 23.f});
-            hakKutusu.setOutlineThickness(1.5f);
-            hakKutusu.setOutlineColor(sf::Color(240, 240, 240));
-            if (i < adam->getCan()) {
-                hakKutusu.setFillColor(sf::Color(220, 50, 50));
-            } else {
-                hakKutusu.setFillColor(sf::Color(85, 25, 25));
+            // HUD: Can Kutuları
+            for (int i = 0; i < 5; ++i) {
+                sf::RectangleShape kutu({28.f, 20.f});
+                kutu.setPosition({20.f + i * 32.f, 20.f});
+                kutu.setOutlineThickness(2.f);
+                kutu.setOutlineColor(sf::Color::White);
+                if (i < tank->getCan()) kutu.setFillColor(sf::Color(50, 200, 80));
+                else kutu.setFillColor(sf::Color(25, 60, 30));
+                window.draw(kutu);
             }
-            window.draw(hakKutusu);
-        }
-        */
 
-        if (oyunBitti) {
-            window.draw(karartma);
-            if (fontYuklendi) window.draw(bittiYazi);
+            for (int i = 0; i < 5; ++i) {
+                sf::RectangleShape kutu({28.f, 20.f});
+                kutu.setPosition({PENCERE_W - 48.f - (i * 32.f), 20.f});
+                kutu.setOutlineThickness(2.f);
+                kutu.setOutlineColor(sf::Color::White);
+                if (i < adam->getCan()) kutu.setFillColor(sf::Color(220, 40, 40));
+                else kutu.setFillColor(sf::Color(70, 20, 20));
+                window.draw(kutu);
+            }
+
+            // Eğer oyun bittiyse karartma ve bitiş menüsünü çiz
+            if (mevcutEkran == EkranDurumu::BITTI) {
+                window.draw(karartma);
+                window.draw(baslikBitti);
+                window.draw(btnTekrar);
+                window.draw(txtTekrar);
+                window.draw(btnMenuyeDon);
+                window.draw(txtMenuyeDon);
+            }
         }
 
         window.display();
     }
 
-    for (OyunNesnesi* n : nesneler) delete n;
+    for (OyunNesnesi* n : nesneler) {
+        if (n != tank && n != adam) delete n;
+    }
+    if (tank) delete tank;
+    if (adam) delete adam;
+
     return 0;
 }
